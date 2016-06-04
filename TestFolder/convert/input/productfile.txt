@@ -1,0 +1,18 @@
+ProductNameUPC,Quantity
+A 10-JAN-2014, Product1
+A 18-JAN-2014, Product2
+AA 22-FEB-2014, Product3
+BB 10-JAN-2014, Product4
+BBBB 18-JAN-2014, Product5
+CC 22-FEB-2014, Product6
+D 10-JAN-2014, Product7
+EE 18-JAN-2014, Product8
+EEEE 22-FEB-2014, Product9
+F 10-JAN-2014, Product10
+FFF 18-JAN-2014, Product11
+GG 22-FEB-2014, Product12
+H 10-JAN-2014, Product13
+III 18-JAN-2014, Product14
+JJ 22-FEB-2014, Product15
+K 10-JAN-2014, Product16
+L 18-JAN-2014, Product17

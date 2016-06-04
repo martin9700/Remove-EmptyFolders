@@ -11,11 +11,15 @@
 	script to work on.
 	
 	** Please Note ** Will run a very long time on massive folder structures.
-.PARAMETER TargetFolder
+.PARAMETER Path
 	Designate the folder you want to run the script on.  Will remove all 
 	empty folders in that path.
+.PARAMETER Passthru
+    Specify if you want object output from the script
+.PARAMETER Mail
+    Specify if you want the script to email the report to you
 .PARAMETER To
-	Who to email the report to
+	Who to email the report to 
 .PARAMETER From
 	You can designate who the email is coming from
 .PARAMETER SMTPServer
@@ -35,43 +39,75 @@
 	Blog:          www.thesurlyadmin.com
 	
 	Changelog:
+       2.0         Big rewrite to include Parameter decorators, PSCustomObjects, performance improvements, ShouldProcess 
+                   support, verbose logging.  Added support for object output (in fact, that's the default) but you can
+                   still email results using the -Mail parameter
 	   1.1         Updated to add some error checking and reporting if there 
 	               are no empty folders.
 	   1.0         Initial release
 .LINK
 	http://community.spiceworks.com/scripts/show/1735-remove-emptyfolders-ps1
 #>
+
+#requires -Version 3.0
+[CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact="High",DefaultParameterSetName="object")]
 Param (
-	[string]$TargetFolder = "c:\utils",
+    [Parameter(Mandatory=$true)]
+    [ValidateScript({ Test-Path $_ })]
+	[string]$Path,
+
+    [Parameter(ParameterSetName="object")]
+    [switch]$Passthru,
+
+    [Parameter(ParameterSetName="mail")]
+    [switch]$Mail,
+
+    [Parameter(ParameterSetName="mail")]
 	[string]$To = "me@mydomain.com",
+    [Parameter(ParameterSetName="mail")]
 	[string]$From = "remove-emptyfolders-script@thesurlyadmin.com",
+    [Parameter(ParameterSetName="mail")]
 	[string]$SMTPServer = "yourexchangeserver"
 )
-$Deleted = @()
-$Folders = @()
-ForEach ($Folder in (Get-ChildItem -Path $TargetFolder -Recurse | Where { $_.PSisContainer }))
+Write-Verbose "$(Get-Date): Remove-EmptyFolders.ps1 begins"
+
+Write-Verbose "Gathering directory information"
+$Folders = ForEach ($Folder in (Get-ChildItem -Path $Path -Recurse -Directory))
 {	
-	$Folders += New-Object PSObject -Property @{
+	[PSCustomObject]@{
 		Object = $Folder
 		Depth = ($Folder.FullName.Split("\")).Count
 	}
 }
 $Folders = $Folders | Sort Depth -Descending
-ForEach ($Folder in $Folders)
-{	#$Folder = Get-ItemProperty -Path $Dir.FullName
+
+[PSCustomObject[]]$Deleted = ForEach ($Folder in $Folders)
+{	
 	If ($Folder.Object.GetFileSystemInfos().Count -eq 0)
-	{	$Deleted += New-Object PSObject -Property @{
+	{	
+        [PSCustomObject]@{
 			Folder = $Folder.Object.FullName
-			Deleted = (Get-Date -Format "hh:mm:ss tt")
+			Deleted = Get-Date
 			Created = $Folder.Object.CreationTime
 			'Last Modified' = $Folder.Object.LastWriteTime
 			Owner = (Get-Acl $Folder.Object.FullName).Owner
 		}
-		Remove-Item -Path $Folder.Object.FullName -Force
+        If ($PSCmdlet.ShouldProcess($Folder.Object.FullName, "Confirm Delete?"))
+        {
+            Write-Verbose "Removing $($Folder.Object.FullName)..."
+		    Remove-Item -Path $Folder.Object.FullName -Force 
+        }
 	}
 }
-$Today = Get-Date -Format "MM-dd-yyyy"
-$Header = @"
+
+
+If ($Mail)
+{
+    Write-Verbose "Generating report and sending email"
+
+    $Today = Get-Date -Format "MM-dd-yyyy"
+    $OutputPath = Join-Path -Path (Split-Path $MyInvocation.MyCommand.Path) -ChildPath "DeletedFolders-$Today.html"
+    $Header = @"
 <style>
 TABLE {border-width: 1px;border-style: solid;border-color: black;border-collapse: collapse;}
 TH {border-width: 1px;padding: 3px;border-style: solid;border-color: black;background-color: #6495ED;}
@@ -82,82 +118,47 @@ Deleted Folders Report for $Today
 </Title>
 "@
 
-$MailProperties = @{
-	From = $From
-	To = $To
-	Subject = "Remove-EmptyFolers.ps1 Run on $TargetFolder"
-	SMTPServer = $SMTPServer
-}
-If ($Deleted)
-{	$Deleted = $Deleted | Select Folder,Deleted,Created,'Last Modified',Owner | Sort Folder
-	$Deleted | ConvertTo-Html -Head $Header | Out-File c:\utils\DeletedFolders-$Today.html
-	$Deleted = $Deleted | ConvertTo-Html -Head $Header | Out-String
-}
-Else
-{	$Deleted = @"
-<Title>
-Deleted Folders Report for $Today
-</Title>
-<Body>
-Deleted Folder run at $Today $(Get-Date -f "hh:mm:ss tt")<br>
-<b>No empty folders detected</b>
-</Body>
+    $MailProperties = @{
+	    From       = $From
+	    To         = $To
+	    Subject    = "Remove-EmptyFolers.ps1 Run on $Path"
+	    SMTPServer = $SMTPServer
+        BodyAsHtml = $true
+    }
+    If ($Deleted)
+    {	
+        Write-Verbose "$($Deleted.Count) folders were removed"
+        $Deleted = $Deleted | Select Folder,Deleted,Created,'Last Modified',Owner | Sort Folder
+	    $HTML = $Deleted | ConvertTo-Html -Head $Header -PreContent "<h3>Deleted Folder run at $Today $(Get-Date -f "hh:mm:ss tt")</h3>" -PostContent "<h4>Total folders deleted: $($Deleted.Count)</h4>"
+    }
+    Else
+    {	
+        Write-Verbose "No folders were removed"
+        $HTML = @"
+<html>
+  <head>
+    <Title>
+      Deleted Folders Report for $Today
+    </Title>
+  </head>
+  <Body>
+    <p>
+    Deleted Folder run at $Today $(Get-Date -f "hh:mm:ss tt")<br>
+    <br/>
+    Target Folder: $Path<br/>
+    <b>No empty folders detected</b>
+  </Body>
+</html>
 "@
-	$Deleted | Out-File c:\utils\DeletedFolders-$Today.html
+    }
+
+    $HTML | Out-File $OutputPath -Encoding ascii
+    Send-MailMessage @MailProperties -Body ($HTML | Out-String)
+}
+ElseIf ($Passthru)
+{
+    Write-Output $Deleted
+    Write-Verbose "$($Deleted.Count) folders were removed"
 }
 
-Send-MailMessage @MailProperties -Body $Deleted -BodyAsHtml
-
-
-
-
-<#
-Measure-Command {
-	$Folders = (gci $TargetFolder -r | ? {$_.PSIsContainer -eq $True}) | ?{$_.GetFileSystemInfos().Count -eq 0}
-}#48 milliseconds
-
-Measure-Command {
-	$Folders2 = Get-ChildItem $TargetFolder -Recurse | Where { $_.PSisContainer -and $_.GetFileSystemInfos().Count -eq 0 }
-}#11 milliseconds
-
-Start-Transcript c:\utils\test.txt
-$Folders = Get-ChildItem $TargetFolder -Recurse | Where { $_.PSisContainer -and $_.GetFileSystemInfos().Count -eq 0 }
-Foreach ($Folder in $Folders)
-{	Remove-Item -Path $Folder.FullName -Recurse -Force -Verbose
-	$Deleted += "Folder Deleted: $($Folder.FullName)`n"
-}
-Stop-Transcript
-
-Start-Transcript c:\utils\test-$(get-date -f "MM-dd-yyyy").txt
-ForEach ($Folder in (GCI $TargetFolder -Recurse | ? { $_.PSisContainer -and $_.GetFileSystemInfos().Count -eq 0 }))
-{	RM -Path $_.Fullname -Recurse -Force -Verbose }
-Stop-Transcript
-
-Function Remove-Dir {
-	Param (
-		[string]$Dir
-	)
-	Get-ChildItem
-	
-	
-	$Folders = Get-ChildItem -Path $Dir
-	If ($Folders -eq $null)
-	{	$Folder = Get-ItemProperty -Path $Dir
-		$Global:Deleted += New-Object PSObject -Property @{
-			Folder = $Folder.FullName
-			Deleted = (Get-Date -Format "hh:mm:ss tt")
-			Created = $Folder.CreationTime
-			'Last Modifed' = $Folder.LastWriteTime
-			Owner = (Get-Acl $Folder).Owner
-		}
-		Remove-Item -Path $Dir -Force
-	}
-	Else
-	{	ForEach ($Folder in $Folders)
-		{	If ($Folder.PSIsContainer)
-			{	Remove-Dir $Folder.FullName
-			}
-		}
-	}
-}
-#>
+Write-Verbose "$(Get-Date): Remove-EmptyFolders.ps1 completed"

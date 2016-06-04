@@ -5,6 +5,7 @@
     }
     New-Item $Dir -ItemType Directory > $null
     Copy-Item -Path "C:\Remove-EmptyFolders\TestFolder\*" -Include * -Destination $Dir -Recurse
+    Get-ChildItem "C:\Remove-EmptyFolders\TestFolder\.gitignore" -Recurse | Remove-Item -Confirm:$false
 }
 
 $Dir = "C:\Remove-EmptyFolders\TestDir"

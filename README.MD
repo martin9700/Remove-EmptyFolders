@@ -1,3 +1,5 @@
+[![Build status](https://ci.appveyor.com/api/projects/status/a1m44yax5ton2hib?svg=true)](https://github.com/martin9700/Remove-EmptyFolders)
+
 Remove-EmptyFolders
 ===================
 

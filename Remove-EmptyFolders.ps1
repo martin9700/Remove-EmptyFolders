@@ -25,13 +25,29 @@
 .PARAMETER SMTPServer
 	You must designate the name or IP address of your SMTP relay server
 .EXAMPLE
-	.\Remove-EmptyFolders.ps1 -TargetFolder \\Server\Share\Accounting
-	Will remove all empty folders in the Accounting folder on your server.  The
-	report will be emailed to the default settings.
+	.\Remove-EmptyFolders.ps1 -Path \\Server\Share\Accounting
+
+	Will remove all empty folders in the Accounting folder on your server.  You will be prompted to confirm each deleted
+    folder (or you can use "Yes for All")
+
 .EXAMPLE 
-	.\Remove-EmptyFolders.ps1 -TargetPath d:\shares -To admin@mydomain.com -From me@thesurlyadmin.com -SMTPServer exchange1
-	Will remove all empty folders in D:\Shares, and email it to admin@mydomain.com 
-	using the server Exchange1 as the SMTP relay.
+	.\Remove-EmptyFolders.ps1 -Path d:\shares -Mail -To admin@mydomain.com -From me@thesurlyadmin.com -SMTPServer exchange1 -confirm:$false
+
+	Will remove all empty folders in D:\Shares, and email it to admin@mydomain.com using the server Exchange1 as the SMTP 
+    relay.  There will be no prompt for deleting the folders.
+
+.EXAMPLE
+    .\Remove-EmptyFolders.ps1 -Path d:\shares -Passthru -confirm:$false
+
+    All empty folders in d:\shares will be deleted, you will not be prompted to confirm the deletions and you will get 
+    outputed objects suitable for logging.
+
+.EXAMPLE
+    .\Remove-EmptyFOlders.ps1 -Path d:\shares -Passthru -WhatIf
+
+    This will run the script, locate the empty folders and return objects for logging that they've been deleted. But
+    because of the -WhatIf parameter they will not actually be deleted.
+
 .NOTES
 	Author:        Martin Pugh
 	Twitter:       @thesurlyadm1n

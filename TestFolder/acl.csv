@@ -1,5 +1,0 @@
-Paths,AccessList,Rights
-\\dc\folders\tsk,BUILTIN\Administrators,FullControl
-\\dc\folders\tsk,SURLY\mpugh,"ReadAndExecute, Synchronize"
-\\dc\folders\tsk,SURLY\tsk,FullControsl
-"So, this is me testing… file should be open!!",,
